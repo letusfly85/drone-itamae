@@ -11,9 +11,9 @@ import (
 	"github.com/drone/drone-plugin-go/plugin"
 )
 
-type Docker struct {
+type Itamae struct {
 	Recipes           []string `json:["nginx", "ruby"]`
-	ItamaeTargetImage string   `json:itamae_target_image`
+	ItamaeTargetImage string   `json:"itamae_target_image"`
 	Storage           string   `json:"storage_driver"`
 	Registry          string   `json:"registry"`
 	Username          string   `json:"username"`
@@ -27,7 +27,7 @@ type Docker struct {
 
 func main() {
 	clone := plugin.Clone{}
-	vargs := Docker{}
+	vargs := Itamae{}
 
 	plugin.Param("clone", &clone)
 	plugin.Param("vargs", &vargs)
@@ -111,13 +111,18 @@ func main() {
 	trace(cmd)
 	cmd.Run()
 
-	cmd = exec.Command("docker", "run", "-d", "--name", "itamae", "-p", "22", "-t", vargs.ItamaeTargetImage)
+	cmd = exec.Command("sudo", "docker", "run", "-d", "--name", "itamae", "-p", "23:22", "-t", vargs.ItamaeTargetImage)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	trace(cmd)
+	cmd.Run()
+	cmd = exec.Command("docker", "ps", "-a")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
 	cmd.Run()
 
-	cmd = exec.Command("docker", "exec", "-it", "itamae", "/bin/bash", "-c", "`cat > /root/.ssh/authorized_keys`", "<", "/root/.ssh/id_rsa.pub")
+	cmd = exec.Command("sudo", "docker", "exec", "-it", "itamae", "/bin/bash", "-c", "`cat > /root/.ssh/authorized_keys`", "<", "/root/.ssh/id_rsa.pub")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
@@ -125,7 +130,7 @@ func main() {
 
 	// Build the container
 	for _, recipe := range vargs.Recipes {
-		cmd = exec.Command("itamae", "ssh", "-u", "root", "-h", "localhost", "--node-json=attribute.json", recipe)
+		cmd = exec.Command("sudo", "itamae", "ssh", "-u", "root", "-h", "0.0.0.0", "-p", "23", "--node-json=attribute.json", recipe)
 		cmd.Dir = clone.Dir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -136,7 +141,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	cmd = exec.Command("docker", "commit", "-m", "message", "itamae", vargs.ItamaeTargetImage)
+	cmd = exec.Command("sudo", "docker", "commit", "-m", "message", "itamae", vargs.Repo)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
@@ -163,7 +168,7 @@ func trace(cmd *exec.Cmd) {
 
 // authorize is a helper function that authorizes the Docker client
 // by manually creating the Docker authentication file.
-func authorize(d *Docker) error {
+func authorize(d *Itamae) error {
 	var path = "/root/.dockercfg" // TODO should probably use user.Home() for good measure
 	var data = fmt.Sprintf(dockerconf, d.Registry, d.Auth, d.Email)
 	return ioutil.WriteFile(path, []byte(data), 0644)
