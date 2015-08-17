@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 )
 
 type Itamae struct {
-	Recipes           []string `json:["nginx", "ruby"]`
+	Recipes           []string `json:["nginx.rb", "jenkins.rb"]`
 	ItamaeTargetImage string   `json:"itamae_target_image"`
 	Storage           string   `json:"storage_driver"`
 	Registry          string   `json:"registry"`
@@ -111,55 +112,36 @@ func main() {
 	trace(cmd)
 	cmd.Run()
 
-	cmd = exec.Command("docker", "run", "-d", "--name", "itamae", "-p", "23:22", "-t", vargs.ItamaeTargetImage)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
-	cmd.Run()
-	cmd = exec.Command("docker", "ps", "-a")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
-	cmd.Run()
-	cmd = exec.Command("docker", "inspect", "-f", "'{{.Id}}'", "itamae")
-	//cmd.Stdout = os.Stdout
-	//cmd.Stderr = os.Stderr
-	trace(cmd)
-	out, err := cmd.Output()
-	cid := string(out)
-	if err != nil {
-		println(err.Error())
-	}
-	cid = strings.Replace(cid, "'", "", -1)
-	cid = strings.Trim(cid, "\n")
-
-	cmd = exec.Command("mkdir", "-p", "/var/lib/docker/aufs/mnt/"+cid+"/root/.ssh")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
-	cmd.Run()
-
-	cmd = exec.Command("/bin/bash", "-l", "-c", "`cat /root/.ssh/id_rsa.pub  > /var/lib/docker/aufs/mnt/"+cid+"/root/.ssh/authorized_keys`")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	trace(cmd)
-	cmd.Run()
-
 	// Build the container
 	//TODO custom json
-	for _, recipe := range vargs.Recipes {
-		cmd = exec.Command("itamae", "ssh", "-u", "root", "-h", "0.0.0.0", "-p", "23", "--node-json=attribute.json", recipe)
+	image_id := ""
+	for index, recipe := range vargs.Recipes {
+		from_image := ""
+		if index == 0 {
+			from_image = vargs.ItamaeTargetImage
+		} else {
+			from_image = image_id
+		}
+		cmd = exec.Command("itamae", "docker", "--image="+from_image, "--node-json=attribute.json", recipe)
 		cmd.Dir = clone.Dir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		trace(cmd)
-		err := cmd.Run()
+		out, err := cmd.Output()
+		println(string(out))
 		if err != nil {
 			stop()
 			os.Exit(1)
 		}
+		stdoutArray := strings.Split(string(out), "\n")
+		rs, _ := regexp.Compile("INFO : Image created: ([(a-z0-9]+)")
+		ri, _ := regexp.Compile("([(a-z0-9]+)$")
+		for _, stdout := range stdoutArray {
+			if rs.MatchString(stdout) {
+				image_id = ri.FindString(stdout)
+			}
+		}
 	}
-	cmd = exec.Command("docker", "commit", "-m", "message", "itamae", vargs.Repo)
+
+	cmd = exec.Command("docker", "tag", image_id, vargs.Repo)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
@@ -171,7 +153,7 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		stop()
 		os.Exit(1)
