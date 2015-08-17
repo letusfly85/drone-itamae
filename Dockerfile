@@ -27,9 +27,12 @@ RUN ssh-keygen -t rsa -N "" -f /root/.ssh/id_rsa
 RUN rm -rf /var/lib/apt/lists/*
 
 RUN gem install itamae
+RUN gem install docker-api
 
 ADD drone-itamae /go/bin/
 ADD wrapdocker /bin/
+
+ADD docker /etc/default/docker
 
 VOLUME /var/lib/docker
 ENTRYPOINT ["/go/bin/drone-itamae"]
