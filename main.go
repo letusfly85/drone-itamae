@@ -111,7 +111,7 @@ func main() {
 	trace(cmd)
 	cmd.Run()
 
-	cmd = exec.Command("sudo", "docker", "run", "-d", "--name", "itamae", "-p", "23:22", "-t", vargs.ItamaeTargetImage)
+	cmd = exec.Command("docker", "run", "-d", "--name", "itamae", "-p", "23:22", "-t", vargs.ItamaeTargetImage)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
@@ -121,16 +121,34 @@ func main() {
 	cmd.Stderr = os.Stderr
 	trace(cmd)
 	cmd.Run()
+	cmd = exec.Command("docker", "inspect", "-f", "'{{.Id}}'", "itamae")
+	//cmd.Stdout = os.Stdout
+	//cmd.Stderr = os.Stderr
+	trace(cmd)
+	out, err := cmd.Output()
+	cid := string(out)
+	if err != nil {
+		println(err.Error())
+	}
+	cid = strings.Replace(cid, "'", "", -1)
+	cid = strings.Trim(cid, "\n")
 
-	cmd = exec.Command("sudo", "docker", "exec", "-it", "itamae", "/bin/bash", "-c", "`cat > /root/.ssh/authorized_keys`", "<", "/root/.ssh/id_rsa.pub")
+	cmd = exec.Command("mkdir", "-p", "/var/lib/docker/aufs/mnt/"+cid+"/root/.ssh")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	trace(cmd)
+	cmd.Run()
+
+	cmd = exec.Command("/bin/bash", "-l", "-c", "`cat /root/.ssh/id_rsa.pub  > /var/lib/docker/aufs/mnt/"+cid+"/root/.ssh/authorized_keys`")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
 	cmd.Run()
 
 	// Build the container
+	//TODO custom json
 	for _, recipe := range vargs.Recipes {
-		cmd = exec.Command("sudo", "itamae", "ssh", "-u", "root", "-h", "0.0.0.0", "-p", "23", "--node-json=attribute.json", recipe)
+		cmd = exec.Command("itamae", "ssh", "-u", "root", "-h", "0.0.0.0", "-p", "23", "--node-json=attribute.json", recipe)
 		cmd.Dir = clone.Dir
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -141,7 +159,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	cmd = exec.Command("sudo", "docker", "commit", "-m", "message", "itamae", vargs.Repo)
+	cmd = exec.Command("docker", "commit", "-m", "message", "itamae", vargs.Repo)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
@@ -153,7 +171,7 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	trace(cmd)
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		stop()
 		os.Exit(1)

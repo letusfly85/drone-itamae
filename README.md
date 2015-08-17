@@ -1,7 +1,3 @@
-# WIP
-
-this repository is on WIP.
-
 # drone-itamae
 Drone plugin for publishing Docker images using itamae
 
@@ -27,11 +23,13 @@ docker run -i --privileged -v $(pwd):/drone/src plugins/drone-itamae <<EOF
 		"branch": "master"
 	},
 	"vargs": {
-		"recipes": ["nginx", "ruby"],
+	        "itamae_target_image": "ubuntu:14.04",
+		"recipes": ["localte.rb"],
 		"username": "kevinbacon",
 		"password": "pa$$word", 
 		"email": "foo@bar.com", 
 		"repo": "foo/bar",
+		"tag": "001",
 		"storage_driver": "aufs"
 	}
 }
